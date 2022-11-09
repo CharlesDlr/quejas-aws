@@ -132,7 +132,7 @@ router.get("/quejasexternas/cambio/:idqueja", authorize, rolauth, async (req, re
       if (check.rowCount === 0) {
         res.json("Esta queja no existe...")
       } else {
-        const quejas = await pool.query("select fecha, estado, responsable, comentario from cambio_estatus where queja_id=$1;", [req.params.idqueja]);
+        const quejas = await pool.query("select ce.cambio_estatus_id, ce.fecha, ce.estado, ce.responsable, ce.comentario, u.nombre from cambio_estatus ce inner join usuarios u on ce.usuario_id = u.usuario_id where queja_id=$1;", [req.params.idqueja]);
         if(quejas.rowCount === 0) {
           return res.json("Esta queja no tiene cambio de estatus...")
         } else res.json(quejas.rows);
@@ -447,7 +447,7 @@ router.get("/ejecutivo", authorize, rolauth, async (req, res) => {
 router.get("/ejecutivo/cambio/:idqueja", authorize, async (req, res) => {
   try {
     const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.user.id])
-    const cambio_estatus = await pool.query("select ce.comentario from cambio_estatus ce inner join quejas q on q.queja_id=ce.queja_id where q.queja_id=$1 and q.ejecutivo_id=$2;", [req.params.idqueja, ejecutivo.rows[0].ejecutivo_id]);
+    const cambio_estatus = await pool.query("select ce.comentario, u.nombre Autor from cambio_estatus ce inner join quejas q on q.queja_id=ce.queja_id inner join usuarios u on u.usuario_id=ce.usuario_id where q.queja_id=$1 and q.ejecutivo_id=$2;", [req.params.idqueja, ejecutivo.rows[0].ejecutivo_id]);
     if (cambio_estatus.rowCount === 0) {
       res.status(401).send("Esta queja no tiene cambio de estatus...");
     } else {
@@ -474,7 +474,7 @@ router.put("/ejecutivo/cambioestatus/:idqueja", authorize, async (req, res) => {
 router.post("/ejecutivo/cambio/:idqueja", authorize, async (req, res) => {
   try {
     const {comentario} = req.body;
-    await pool.query("Insert into cambio_estatus (comentario, queja_id) values ($1, $2) returning *", [comentario, req.params.idqueja]);
+    await pool.query("Insert into cambio_estatus (comentario, queja_id, usuario_id) values ($1, $2, $3) returning *", [comentario, req.params.idqueja, req.user.id]);
     res.json("Comentario Insertado");
 } catch (err) {
     console.error(err.message);
