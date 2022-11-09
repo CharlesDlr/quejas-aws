@@ -154,7 +154,7 @@ router.post("/quejasexternas/cambio/:idqueja", authorize, rolauth, async (req, r
       return res.json("Esta queja ya tiene un cambio de estatus...")
     } else {
       const {estado, responsable, comentario} = req.body;
-      const cambio = await pool.query("Insert into cambio_estatus (estado, responsable, queja_id, comentario) values ($1, $2, $3, $4) returning queja_id, estado, responsable, comentario", [estado, responsable, req.params.idqueja, comentario])
+      const cambio = await pool.query("Insert into cambio_estatus (estado, responsable, queja_id, comentario, usuario_id) values ($1, $2, $3, $4, $5) returning queja_id, estado, responsable, comentario, usuario_id", [estado, responsable, req.params.idqueja, comentario, req.user.id])
       res.json(cambio.rows);
     }
   } catch (err) {
