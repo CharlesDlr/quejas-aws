@@ -16,42 +16,6 @@ router.get("/quejasexternas/:idpage", authorize, rolauth, async (req, res) => {
   }
 })
 
-//Filtrar quejas por sucursal
-router.get("/quejascm/:idsucursal", authorize, rolauth, async (req, res) => {
-  try {
-    const idsucursal = req.params.idsucursal
-    const quejas = await pool.query("select queja_id Id, s.nombre Sucursal, e.nombre Ejecutivo, tq.nombre TipoQueja, q.descr Descripción, q.fecha Fecha, q.estatus Estatus, o.nombre Origen, q.nombre_usuario NombreUsuario, q.telefono Teléfono from quejas q inner join ejecutivos e on e.ejecutivo_id=q.ejecutivo_id inner join sucursales s on e.sucursal_id=s.sucursal_id inner join origen o on q.origen_id=o.origen_id inner join tipo_queja tq on tq.tipo_queja_id=q.tipo_queja_id where s.sucursal_id=$1 order by Id asc;", [idsucursal]);
-    res.json(quejas.rows);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-})
-
-//Filtrar quejas por ejecutivo
-router.get("/quejascme/:idejecutivo", authorize, rolauth, async (req, res) => {
-  try {
-    const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.params.idejecutivo])
-    const quejas = await pool.query("select queja_id Id, s.nombre Sucursal, e.nombre Ejecutivo, tq.nombre TipoQueja, q.descr Descripción, q.fecha Fecha, q.estatus Estatus, o.nombre Origen, q.nombre_usuario NombreUsuario, q.telefono Teléfono from quejas q inner join ejecutivos e on e.ejecutivo_id=q.ejecutivo_id inner join sucursales s on e.sucursal_id=s.sucursal_id inner join origen o on q.origen_id=o.origen_id inner join tipo_queja tq on tq.tipo_queja_id=q.tipo_queja_id where e.ejecutivo_id=$1 order by Id asc;", [ejecutivo.rows[0].ejecutivo_id]);
-    res.json(quejas.rows);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-})
-
-//Filtrar quejas por tipo de quejas
-router.get("/quejascmtq/:idtipoqueja", authorize, rolauth, async (req, res) => {
-  try {
-    const idtipoqueja = req.params.idtipoqueja
-    const quejas = await pool.query("select queja_id Id, s.nombre Sucursal, e.nombre Ejecutivo, tq.nombre TipoQueja, q.descr Descripción, q.fecha Fecha, q.estatus Estatus, o.nombre Origen, q.nombre_usuario NombreUsuario, q.telefono Teléfono from quejas q inner join ejecutivos e on e.ejecutivo_id=q.ejecutivo_id inner join sucursales s on e.sucursal_id=s.sucursal_id inner join origen o on q.origen_id=o.origen_id inner join tipo_queja tq on tq.tipo_queja_id=q.tipo_queja_id where q.tipo_queja_id=$1 order by Id asc;", [idtipoqueja]);
-    res.json(quejas.rows);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-})
-
 //Create a queja
 router.post("/quejasexternas", authorize, rolauth, async (req, res) => {
   try {
@@ -130,7 +94,7 @@ router.delete("/quejasexternas/:idqueja", authorize, rolauth, async (req, res) =
 });
 
 //To see Cambio de estatus
-router.get("/quejasexternas/cambio/:idqueja", authorize, rolauth, async (req, res) => {
+router.get("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
   try {
     const check = await pool.query("select * from quejas where queja_id=$1;", [req.params.idqueja])
       if (check.rowCount === 0) {
@@ -148,7 +112,7 @@ router.get("/quejasexternas/cambio/:idqueja", authorize, rolauth, async (req, re
 })
 
 //To add Cambio de estatus
-router.post("/quejasexternas/cambio/:idqueja", authorize, rolauth, async (req, res) => {
+router.post("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
   try {
     const queja_inicial= await pool.query("Select * from quejas where queja_id=$1", [req.params.idqueja])
     const quejas = await pool.query("select fecha, estado, responsable from cambio_estatus where queja_id=$1;", [req.params.idqueja]);
@@ -168,7 +132,7 @@ router.post("/quejasexternas/cambio/:idqueja", authorize, rolauth, async (req, r
 })
 
 //To update a cambio de estatus
-router.put("/quejasexternas/cambio/:idqueja", authorize, rolauth, async (req, res) => {
+router.put("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
   try {
     const queja_inicial= await pool.query("Select * from quejas where queja_id=$1", [req.params.idqueja])
     if (queja_inicial.rowCount === 0 ){
@@ -185,7 +149,7 @@ router.put("/quejasexternas/cambio/:idqueja", authorize, rolauth, async (req, re
 })
 
 //To delete a cambio de estatus
-router.delete("/quejasexternas/cambio/:idqueja", authorize, rolauth, async (req, res) => {
+router.delete("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
   try {
     const queja_inicial= await pool.query("Select * from quejas where queja_id=$1", [req.params.idqueja])
     if (queja_inicial.rowCount === 0 ){
@@ -434,67 +398,4 @@ router.delete("/ejecutivos/:idejecutivo", authorize, async (req, res) => {
       console.error(err.message);
   }
 });
-
-//Flujo Ejecutivo
-//To see only a Specific Ejecutivo Quejas
-router.get("/ejecutivo", authorize, rolauth, async (req, res) => {
-  try {
-    const ejecutivos = await pool.query("select q.queja_id id, q.descr, q.fecha, q.estatus, q.nombre_usuario usuario, q.telefono from quejas q inner join ejecutivos e on q.ejecutivo_id=e.ejecutivo_id inner join usuarios u on e.nombre=u.nombre where u.usuario_id=$1 order by q.queja_id asc;", [req.user.id]);
-    res.json(ejecutivos.rows);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-})
-
-//To see detalle cambio de estatus
-router.get("/ejecutivo/cambio/:idqueja", authorize, async (req, res) => {
-  try {
-    const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.user.id])
-    const cambio_estatus = await pool.query("select ce.comentario, u.nombre Autor from cambio_estatus ce inner join quejas q on q.queja_id=ce.queja_id inner join usuarios u on u.usuario_id=ce.usuario_id where q.queja_id=$1 and q.ejecutivo_id=$2;", [req.params.idqueja, ejecutivo.rows[0].ejecutivo_id]);
-    if (cambio_estatus.rowCount === 0) {
-      res.status(401).send("Esta queja no tiene cambio de estatus...");
-    } else {
-      res.json(cambio_estatus.rows);
-    }
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-})
-
-//To update estatus de una queja
-router.put("/ejecutivo/cambioestatus/:idqueja", authorize, async (req, res) => {
-  try {
-    const {estatus} = req.body;
-    const nuevoestatus = await pool.query("Update quejas set estatus=$1 where queja_id=$2 returning queja_id, estatus", [estatus, req.params.idqueja]);
-    res.json(nuevoestatus.rows[0]);
-} catch (err) {
-    console.error(err.message);
-}
-})
-
-//To add comentarios to a queja
-router.post("/ejecutivo/cambio/:idqueja", authorize, async (req, res) => {
-  try {
-    const {comentario} = req.body;
-    await pool.query("Insert into cambio_estatus (comentario, queja_id, usuario_id) values ($1, $2, $3) returning *", [comentario, req.params.idqueja, req.user.id]);
-    res.json("Comentario Insertado");
-} catch (err) {
-    console.error(err.message);
-}
-})
-
-
-
-//Auditor
-router.get("/quejasauditor/:idsucursal", authorize, rolauth, async (req, res) => {
-  try {
-    const quejas = await pool.query("select q.queja_id Id, s.nombre Sucursal, e.nombre Ejecutivo, tq.nombre TipoQueja, q.descr Descripción, q.fecha Fecha, q.estatus from quejas q inner join ejecutivos e  on e.ejecutivo_id=q.ejecutivo_id inner join sucursales s  on e.sucursal_id=s.sucursal_id inner join origen o on q.origen_id=o.origen_id inner join tipo_queja tq on tq.tipo_queja_id=q.tipo_queja_id where s.sucursal_id=$1;", [req.params.idsucursal]);
-    res.json(quejas.rows);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-})
 module.exports = router;
