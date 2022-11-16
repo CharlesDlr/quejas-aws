@@ -6,7 +6,7 @@ module.exports = async (req,res,next) => {
         //Obtain the token from the server
         const jwtToken = req.header("token");
         if (!jwtToken) {
-            return res.status(403).json("Not Even a Token Bro");
+            return res.status(403).json("Sin token no puedes acceder");
         }
         //To acces specific routes
         const payload = jwt.verify(jwtToken, process.env.jwtSecret)

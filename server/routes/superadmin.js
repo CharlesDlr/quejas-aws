@@ -3,6 +3,13 @@ const authorize = require("../middleware/authorization");
 const pool = require("../db");
 const rolauth = require("../middleware/rolauth");
 const bcrypt = require("bcrypt");
+const quejasSchema = require("../middleware/ValidationSchemas/quejasSchema");
+const validSchema = require("../middleware/validSchema");
+const cambiodeestatusSchema = require("../middleware/ValidationSchemas/cambiodeestatusSchema");
+const sucursalSchema = require("../middleware/ValidationSchemas/sucursalSchema");
+const tipoquejaSchema = require("../middleware/ValidationSchemas/tipoquejaSchema");
+const ejecutivoSchema = require("../middleware/ValidationSchemas/ejecutivoSchema");
+const updateEjecutivoSchema = require("../middleware/ValidationSchemas/updateEjecutivoSchema");
 //Flujo Admin
 //To see Quejas Externas
 router.get("/quejasexternas/:idpage", authorize, rolauth, async (req, res) => {
@@ -17,12 +24,9 @@ router.get("/quejasexternas/:idpage", authorize, rolauth, async (req, res) => {
 })
 
 //Create a queja
-router.post("/quejasexternas", authorize, rolauth, async (req, res) => {
+router.post("/quejasexternas", authorize, rolauth, validSchema(quejasSchema), async (req, res) => {
   try {
     const {ejecutivo, sucursal, tipoqueja, descr, estatus, origen, nombreusuario, telefono} = req.body;
-    if (![ejecutivo, sucursal, tipoqueja, descr, estatus, origen, nombreusuario, telefono].every(Boolean)) {
-      return res.json("Llene todo los campos");
-    } else {
       const check = await pool.query ("Select * from ejecutivos where ejecutivo_id=$1", [ejecutivo])
       const verifyTipoQueja = await pool.query("Select * from tipo_queja where tipo_queja_id=$1", [tipoqueja])
       const verifyOrigen= await pool.query("Select * from origen where origen_id=$1", [origen])
@@ -34,13 +38,10 @@ router.post("/quejasexternas", authorize, rolauth, async (req, res) => {
         res.status(707).send("Este ejecutivo no existe")
       } else if (check.rows[0].sucursal_id != sucursal) {
         res.status(707).send("Este ejecutivo no pertenece a esta sucursal")
-      } else if (estatus!=0 && estatus!=1) {
-        res.status(707).send("No puedes asignar un estatus diferente a 0 o 1")
       } else {
         const newQueja = await pool.query("insert into quejas (ejecutivo_id, sucursal_id, tipo_queja_id, descr, estatus, origen_id, nombre_usuario, telefono) values ($1,$2,$3,$4,$5,$6,$7, $8) returning *", [ejecutivo, sucursal, tipoqueja, descr, estatus, origen, nombreusuario, telefono]);
         res.json(newQueja.rows);
       }
-    }
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -48,7 +49,7 @@ router.post("/quejasexternas", authorize, rolauth, async (req, res) => {
 })
 
 //Update a queja
-router.put("/quejasexternas/:idqueja", authorize, rolauth, async (req, res) => {
+router.put("/quejasexternas/:idqueja", authorize, rolauth, validSchema(quejasSchema), async (req, res) => {
   try {
       const queja = await pool.query("select * from quejas where queja_id=$1;", [req.params.idqueja])
       if (queja.rowCount === 0) {
@@ -112,7 +113,7 @@ router.get("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
 })
 
 //To add Cambio de estatus
-router.post("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
+router.post("/cambio/:idqueja", authorize, rolauth, validSchema(cambiodeestatusSchema), async (req, res) => {
   try {
     const queja_inicial= await pool.query("Select * from quejas where queja_id=$1", [req.params.idqueja])
     const quejas = await pool.query("select fecha, estado, responsable from cambio_estatus where queja_id=$1;", [req.params.idqueja]);
@@ -120,7 +121,8 @@ router.post("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
       return res.json("Esta queja no existe...")
     } else if(quejas.rowCount > 0) {
       return res.json("Esta queja ya tiene un cambio de estatus...")
-    } else {
+    }
+    else {
       const {estado, responsable, comentario} = req.body;
       const cambio = await pool.query("Insert into cambio_estatus (estado, responsable, queja_id, comentario, usuario_id) values ($1, $2, $3, $4, $5) returning queja_id, estado, responsable, comentario, usuario_id", [estado, responsable, req.params.idqueja, comentario, req.user.id])
       res.json(cambio.rows);
@@ -132,7 +134,7 @@ router.post("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
 })
 
 //To update a cambio de estatus
-router.put("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
+router.put("/cambio/:idqueja", authorize, rolauth, validSchema(cambiodeestatusSchema), async (req, res) => {
   try {
     const queja_inicial= await pool.query("Select * from quejas where queja_id=$1", [req.params.idqueja])
     if (queja_inicial.rowCount === 0 ){
@@ -178,7 +180,7 @@ router.get("/sucursales/:idpage", authorize, rolauth, async (req, res) => {
 //To see Sucursales and sort
 router.get("/sucursalessorted/:idnombre", authorize, rolauth, async (req, res) => {
   try {
-    const sucursales = await pool.query("select * from sucursales where upper(nombre) like upper ('%" + req.params.idnombre + "%');");
+    const sucursales = await pool.query("select * from sucursales where upper(unaccent(nombre)) like upper(unaccent('%" + req.params.idnombre + "%'));");
     if (sucursales.rowCount === 0) {
       return res.json("No hay sucursales que coincidan con la búsqueda")
     } else res.json(sucursales.rows);
@@ -200,15 +202,11 @@ router.get("/sucursalesstats", authorize, rolauth, async (req, res) => {
 })
 
 //To add a Sucursal
-router.post("/sucursales", authorize, rolauth, async (req, res) => {
+router.post("/sucursales", authorize, rolauth, validSchema(sucursalSchema), async (req, res) => {
   try {
     const {nombre, estatus} = req.body;
-    if (estatus!=0 && estatus!=1) {
-      res.status(707).send("No puedes asignar un estatus diferente a 0 o 1")
-    } else {
-      const newSucursal = await pool.query("insert into sucursales (nombre, estatus) values ($1,$2) returning *", [nombre, estatus]);
-      res.json(newSucursal.rows); 
-    }
+    const newSucursal = await pool.query("insert into sucursales (nombre, estatus) values ($1,$2) returning *", [nombre, estatus]);
+    res.json(newSucursal.rows);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -216,19 +214,15 @@ router.post("/sucursales", authorize, rolauth, async (req, res) => {
 })
 
 //Update a sucursal
-router.put("/sucursales/:idsucursal", authorize, rolauth, async (req, res) => {
+router.put("/sucursales/:idsucursal", authorize, rolauth, validSchema(sucursalSchema), async (req, res) => {
   try {
     const sucursal = await pool.query("Select * from sucursales where sucursal_id=$1", [req.params.idsucursal])
     if (sucursal.rowCount === 0) {
-      return res.json("Ests sucursal no existe...")
+      return res.json("Esta sucursal no existe...")
     } else {
-      const {nombre, estatus} = req.body;
-      if (estatus!=0 && estatus!=1) {
-        res.status(707).send("No puedes asignar un estatus diferente a 0 o 1")
-      } else {
-        await pool.query("Update sucursales set nombre=$1, estatus=$2 where sucursal_id=$3 returning *", [nombre, estatus,req.params.idsucursal]);
-        res.json("Sucursal Actualizada");
-      }
+      const {nombre, estatus} = req.body; 
+      await pool.query("Update sucursales set nombre=$1, estatus=$2 where sucursal_id=$3 returning *", [nombre, estatus,req.params.idsucursal]);
+      res.json("Sucursal Actualizada");
     }
 } catch (err) {
     console.error(err.message);
@@ -262,15 +256,11 @@ router.get("/tiposquejas", authorize, rolauth, async (req, res) => {
 })
 
 //Create a Tipo de queja
-router.post("/tiposquejas", authorize, rolauth, async (req, res) => {
+router.post("/tiposquejas", authorize, rolauth, validSchema(tipoquejaSchema), async (req, res) => {
   try {
     const {nombre, abreviatura, estatus} = req.body;
-    if (estatus!=0 && estatus!=1) {
-      res.status(707).send("No puedes asignar un estatus diferente a 0 o 1")
-    } else {
       const newTipoQueja = await pool.query("insert into tipo_queja (nombre, abreviatura, estatus) values ($1,$2,$3) returning *", [nombre, abreviatura, estatus]);
       res.json(newTipoQueja.rows);
-    }
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -315,7 +305,18 @@ router.delete("/tiposquejas/:idtipoqueja", authorize, rolauth, async (req, res) 
 //To see Ejecutivos
 router.get("/ejecutivos", authorize, rolauth, async (req, res) => {
   try {
-    const ejecutivos = await pool.query("select s.nombre sucursal, e.nombre ejecutivo, e.telefono, e.estatus from sucursales s inner join ejecutivos e on s.sucursal_id=e.sucursal_id;");
+    const ejecutivos = await pool.query("select e.nombre ejecutivo, s.nombre sucursal, e.telefono, e.estatus from sucursales s inner join ejecutivos e on s.sucursal_id=e.sucursal_id;");
+    res.json(ejecutivos.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+})
+
+//To see Ejecutivos and sort by their name
+router.get("/ejecutivos/:nombre", authorize, rolauth, async (req, res) => {
+  try {
+    const ejecutivos = await pool.query("select e.nombre ejecutivo, s.nombre sucursal, e.telefono, e.estatus from sucursales s inner join ejecutivos e on s.sucursal_id=e.sucursal_id WHERE UPPER(e.NOMBRE) like UPPER(UNACCENT('%"+req.params.nombre+"%'));");
     res.json(ejecutivos.rows);
   } catch (err) {
     console.error(err.message);
@@ -336,7 +337,7 @@ router.get("/ejecutivosstats/:idpage", authorize, rolauth, async (req, res) => {
 })
 
 //To create Ejecutivo
-router.post("/ejecutivos", authorize, rolauth, async (req, res) => {
+router.post("/ejecutivos", authorize, rolauth, validSchema(ejecutivoSchema), async (req, res) => {
   try {
     const {nombre, email, password, sucursal, estatus, telefono} = req.body;
     const rol = 'Ejecutivo';
@@ -346,8 +347,6 @@ router.post("/ejecutivos", authorize, rolauth, async (req, res) => {
       return res.status(401).json("Correo electrónico ya registrado")
     } else if (suc.rowCount === 0) {
       return res.status(707).send("Esta sucursal no existe")
-    } else if (estatus!=0 && estatus!=1) {
-      res.status(707).send("No puedes asignar un estatus diferente a 0 o 1")
     } else {
       const saltRound = 10;
       const salt = await bcrypt.genSalt(saltRound);
@@ -362,7 +361,7 @@ router.post("/ejecutivos", authorize, rolauth, async (req, res) => {
 })
 
 //To update a Ejecutivo
-router.put("/ejecutivos/:idejecutivo", authorize, rolauth, async (req, res) => {
+router.put("/ejecutivos/:idejecutivo", authorize, rolauth, validSchema(updateEjecutivoSchema), async (req, res) => {
   try {
     const {nombre, sucursal, estatus, telefono} = req.body;
     const check = await pool.query("Select * from ejecutivos where ejecutivo_id=$1", [req.params.idejecutivo])
@@ -372,8 +371,6 @@ router.put("/ejecutivos/:idejecutivo", authorize, rolauth, async (req, res) => {
     } else {
       if (suc.rowCount === 0) {
         return res.status(707).send("Esta sucursal no existe")
-      } else if (estatus!=0 && estatus!=1) {
-        res.status(707).send("No puedes asignar un estatus diferente a 0 o 1")
       } else {
         await pool.query("Update ejecutivos set nombre=$1, sucursal_id=$2, estatus=$3, telefono=$4 where ejecutivo_id=$5 returning *", [nombre, sucursal, estatus, telefono, req.params.idejecutivo]);
         res.json("Ejecutivo Actualizado");

@@ -2,6 +2,8 @@ const router = require("express").Router();
 const authorize = require("../middleware/authorization");
 const pool = require("../db");
 const rolauth = require("../middleware/rolauth");
+const quejasSchema = require("../middleware/ValidationSchemas/quejasSchema");
+const validSchema = require("../middleware/validSchema");
 //Flujo Community Manager
 //To see Quejas Externas
 router.get("/quejasexternas/:idpage", authorize, rolauth, async (req, res) => {
@@ -70,12 +72,9 @@ router.get("/cambio/:idqueja", authorize, rolauth, async (req, res) => {
 })
 
 //Create a queja
-router.post("/quejasexternas", authorize, rolauth, async (req, res) => {
+router.post("/quejasexternas", authorize, rolauth, validSchema(quejasSchema), async (req, res) => {
   try {
     const {ejecutivo, sucursal, tipoqueja, descr, estatus, origen, nombreusuario, telefono} = req.body;
-    if (![ejecutivo, sucursal, tipoqueja, descr, estatus, origen, nombreusuario, telefono].every(Boolean)) {
-      return res.json("Llene todo los campos");
-    } else {
       const check = await pool.query ("Select * from ejecutivos where ejecutivo_id=$1", [ejecutivo])
       const verifyTipoQueja = await pool.query("Select * from tipo_queja where tipo_queja_id=$1", [tipoqueja])
       const verifyOrigen= await pool.query("Select * from origen where origen_id=$1", [origen])
@@ -87,13 +86,10 @@ router.post("/quejasexternas", authorize, rolauth, async (req, res) => {
         res.status(707).send("Este ejecutivo no existe")
       } else if (check.rows[0].sucursal_id != sucursal) {
         res.status(707).send("Este ejecutivo no pertenece a esta sucursal")
-      } else if (estatus!=0 && estatus!=1) {
-        res.status(707).send("No puedes asignar un estatus diferente a 0 o 1")
       } else {
         const newQueja = await pool.query("insert into quejas (ejecutivo_id, sucursal_id, tipo_queja_id, descr, estatus, origen_id, nombre_usuario, telefono) values ($1,$2,$3,$4,$5,$6,$7, $8) returning *", [ejecutivo, sucursal, tipoqueja, descr, estatus, origen, nombreusuario, telefono]);
         res.json(newQueja.rows);
       }
-    }
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -101,31 +97,31 @@ router.post("/quejasexternas", authorize, rolauth, async (req, res) => {
 })
 
 //Update a queja
-router.put("/quejasexternas/:idqueja", authorize, rolauth, async (req, res) => {
-    try {
-            const queja = await pool.query("select * from quejas where queja_id=$1;", [req.params.idqueja])
-            if (queja.rowCount === 0) {
-          res.json("Esta queja no existe...")
+router.put("/quejasexternas/:idqueja", authorize, rolauth, validSchema(quejasSchema), async (req, res) => {
+  try {
+      const queja = await pool.query("select * from quejas where queja_id=$1;", [req.params.idqueja])
+      if (queja.rowCount === 0) {
+        res.json("Esta queja no existe...")
+      } else {
+        const {sucursal, ejecutivo, tipoqueja, descr, estatus, origen, nombreusuario, telefono} = req.body;
+        const check = await pool.query ("Select * from ejecutivos where ejecutivo_id=$1", [ejecutivo])
+        const verifyTipoQueja = await pool.query("Select * from tipo_queja where tipo_queja_id=$1", [tipoqueja])
+        const verifyOrigen= await pool.query("Select * from origen where origen_id=$1", [origen])
+        if (verifyOrigen.rowCount === 0) {
+          res.status(707).send("Este origen no existe")
+        } else if (verifyTipoQueja.rowCount === 0) {
+          res.status(707).send("Este tipo de queja no existe")
+        } else if (check.rowCount === 0) {
+          res.status(707).send("Este ejecutivo no existe")
+        } else if (check.rows[0].sucursal_id != sucursal) {
+          res.status(707).send("Este ejecutivo no pertenece a esta sucursal")
+        } else if (estatus!=0 && estatus!=1) {
+          res.status(707).send("No puedes asignar un estatus diferente a 0 o 1")
         } else {
-          const {sucursal, ejecutivo, tipoqueja, descr, estatus, origen, nombreusuario, telefono} = req.body;
-          const check = await pool.query ("Select * from ejecutivos where ejecutivo_id=$1", [ejecutivo])
-          const verifyTipoQueja = await pool.query("Select * from tipo_queja where tipo_queja_id=$1", [tipoqueja])
-          const verifyOrigen= await pool.query("Select * from origen where origen_id=$1", [origen])
-          if (verifyOrigen.rowCount === 0) {
-            res.status(707).send("Este origen no existe")
-          } else if (verifyTipoQueja.rowCount === 0) {
-            res.status(707).send("Este tipo de queja no existe")
-          } else if (check.rowCount === 0) {
-            res.status(707).send("Este ejecutivo no existe")
-          } else if (check.rows[0].sucursal_id != sucursal) {
-            res.status(707).send("Este ejecutivo no pertenece a esta sucursal")
-          } else if (estatus!=0 && estatus!=1) {
-            res.status(707).send("No puedes asignar un estatus diferente a 0 o 1")
-          } else {
-            await pool.query("Update quejas set sucursal_id=$1, ejecutivo_id=$2, tipo_queja_id=$3, descr=$4, estatus=$5, origen_id=$6, nombre_usuario=$7, telefono=$8 where queja_id=$9 returning *", [sucursal, ejecutivo, tipoqueja, descr, estatus, origen, nombreusuario, telefono, req.params.idqueja]);
-            res.json("Queja Actualizada");
-          }
+          await pool.query("Update quejas set sucursal_id=$1, ejecutivo_id=$2, tipo_queja_id=$3, descr=$4, estatus=$5, origen_id=$6, nombre_usuario=$7, telefono=$8 where queja_id=$9 returning *", [sucursal, ejecutivo, tipoqueja, descr, estatus, origen, nombreusuario, telefono, req.params.idqueja]);
+          res.json("Queja Actualizada");
         }
+      }
   } catch (err) {
       console.error(err.message);
   }

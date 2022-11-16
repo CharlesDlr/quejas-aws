@@ -18,11 +18,16 @@ router.get("/quejas", authorize, rolauth, async (req, res) => {
   router.get("/cambio/:idqueja", authorize, async (req, res) => {
     try {
       const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.user.id])
-      const cambio_estatus = await pool.query("select ce.comentario, u.nombre Autor from cambio_estatus ce inner join quejas q on q.queja_id=ce.queja_id inner join usuarios u on u.usuario_id=ce.usuario_id where q.queja_id=$1 and q.ejecutivo_id=$2;", [req.params.idqueja, ejecutivo.rows[0].ejecutivo_id]);
+      const verif = await pool.query("select * from quejas where queja_id=$1 and ejecutivo_id=$2",[req.params.idqueja, ejecutivo.rows[0].ejecutivo_id])
+      if(verif.rowCount === 0) {
+        res.json("Esta queja no te pertenece patrón, ojo ahí...")
+      } else {
+        const cambio_estatus = await pool.query("select ce.comentario, u.nombre Autor from cambio_estatus ce inner join quejas q on q.queja_id=ce.queja_id inner join usuarios u on u.usuario_id=ce.usuario_id where q.queja_id=$1 and q.ejecutivo_id=$2;", [req.params.idqueja, ejecutivo.rows[0].ejecutivo_id]);
       if (cambio_estatus.rowCount === 0) {
         res.status(401).send("Esta queja no tiene cambio de estatus...");
       } else {
         res.json(cambio_estatus.rows);
+      }
       }
     } catch (err) {
       console.error(err.message);
