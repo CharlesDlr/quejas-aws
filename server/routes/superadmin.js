@@ -11,6 +11,7 @@ const tipoquejaSchema = require("../middleware/ValidationSchemas/tipoquejaSchema
 const ejecutivoSchema = require("../middleware/ValidationSchemas/ejecutivoSchema");
 const updateEjecutivoSchema = require("../middleware/ValidationSchemas/updateEjecutivoSchema");
 const auditorSchema = require("../middleware/ValidationSchemas/auditorSchema");
+const updateAuditorSchema = require("../middleware/ValidationSchemas/updateAuditorSchema");
 //Flujo Admin
 //To see Quejas Externas
 router.get("/quejasexternas/:idpage", authorize, rolauth, async (req, res) => {
@@ -341,7 +342,7 @@ router.post("/ejecutivos", authorize, rolauth, validSchema(ejecutivoSchema), asy
   try {
     const {nombre, email, password, sucursal, estatus, telefono} = req.body;
     const rol = 'Ejecutivo';
-    const user = await pool.query("select * from ejecutivos where email = $1", [email]);
+    const user = await pool.query("select * from usuarios where email = $1", [email]);
     const suc = await pool.query("select * from sucursales where sucursal_id=$1", [sucursal])
     if (user.rows.length > 0) {
       return res.status(401).json("Correo electrónico ya registrado")
@@ -353,31 +354,6 @@ router.post("/ejecutivos", authorize, rolauth, validSchema(ejecutivoSchema), asy
       const bcryptPassword = await bcrypt.hash(password, salt);
       const newEjecutivo = await pool.query("insert into ejecutivos (nombre, email, password, rol, sucursal_id, estatus, telefono) values ($1,$2,$3,$4,$5,$6,$7) returning *", [nombre, email, bcryptPassword, rol, sucursal, estatus, telefono]);
       res.json(newEjecutivo.rows);
-    }
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
-})
-
-
-//To create Ejecutivo
-router.post("/auditores", authorize, rolauth, validSchema(auditorSchema), async (req, res) => {
-  try {
-    const {nombre, email, password, sucursal} = req.body;
-    const rol = 'Auditor';
-    const user = await pool.query("select * from usuarios where email = $1", [email]);
-    const suc = await pool.query("select * from sucursales where sucursal_id=$1", [sucursal])
-    if (user.rows.length > 0) {
-      return res.status(401).json("Correo electrónico ya registrado")
-    } else if (suc.rowCount === 0) {
-      return res.status(707).send("Esta sucursal no existe")
-    } else {
-      const saltRound = 10;
-      const salt = await bcrypt.genSalt(saltRound);
-      const bcryptPassword = await bcrypt.hash(password, salt);
-      const newAuditor = await pool.query("insert into auditores (nombre, email, password, rol, sucursal_id) values ($1,$2,$3,$4,$5) returning *", [nombre, email, bcryptPassword, rol, sucursal]);
-      res.json(newAuditor.rows);
     }
   } catch (err) {
     console.error(err.message);
@@ -415,6 +391,77 @@ router.delete("/ejecutivos/:idejecutivo", authorize, async (req, res) => {
     } else {
       await pool.query("delete from ejecutivos where ejecutivo_id=$1", [req.params.idejecutivo])
       res.json("Este ejecutivo fue eliminado");
+    }
+  } catch (err) {
+      console.error(err.message);
+  }
+});
+
+//To see Auditores
+router.get("/auditores", authorize, rolauth, async (req, res) => {
+  try {
+    const auditores = await pool.query("SELECT au.NOMBRE,S.NOMBRE SUCURSAL FROM SUCURSALES S INNER JOIN auditores  au ON au.sucursal_id = S.sucursal_id;");
+    res.json(auditores.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+})
+
+//To create Auditor
+router.post("/auditores", authorize, rolauth, validSchema(auditorSchema), async (req, res) => {
+  try {
+    const {nombre, email, password, sucursal} = req.body;
+    const rol = 'Auditor';
+    const user = await pool.query("select * from usuarios where email = $1", [email]);
+    const suc = await pool.query("select * from sucursales where sucursal_id=$1", [sucursal])
+    if (user.rows.length > 0) {
+      return res.status(401).json("Correo electrónico ya registrado")
+    } else if (suc.rowCount === 0) {
+      return res.status(707).send("Esta sucursal no existe")
+    } else {
+      const saltRound = 10;
+      const salt = await bcrypt.genSalt(saltRound);
+      const bcryptPassword = await bcrypt.hash(password, salt);
+      const newAuditor = await pool.query("insert into auditores (nombre, email, password, rol, sucursal_id) values ($1,$2,$3,$4,$5) returning *", [nombre, email, bcryptPassword, rol, sucursal]);
+      res.json(newAuditor.rows);
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+})
+
+//To update Auditor
+router.put("/auditores/:idauditor", authorize, rolauth, validSchema(updateAuditorSchema), async (req, res) => {
+  try {
+    const {nombre, sucursal} = req.body;
+    const check = await pool.query("Select * from auditores where auditor_id=$1", [req.params.idauditor])
+    const suc = await pool.query("select * from sucursales where sucursal_id=$1", [sucursal])
+    if (check.rowCount === 0) {
+      return res.json("Este auditor no existe...")
+    } else {
+      if (suc.rowCount === 0) {
+        return res.status(707).send("Esta sucursal no existe")
+      } else {
+        await pool.query("Update auditores set nombre=$1, sucursal_id=$2 where auditor_id=$3 returning *", [nombre, sucursal, req.params.idauditor]);
+        res.json("Auditor Actualizado");
+      }
+    }
+} catch (err) {
+    console.error(err.message);
+}
+})
+
+//To delete Auditor
+router.delete("/auditores/:idauditor", authorize, async (req, res) => {
+  try {
+    const auditor = await pool.query("Select * from auditores where auditor_id=$1", [req.params.idauditor])
+    if (auditor.rowCount === 0) {
+      return res.json("Este número de auditor no existe...")
+    } else {
+      await pool.query("delete from auditores where auditor_id=$1", [req.params.idauditor])
+      res.json("Este auditor fue eliminado");
     }
   } catch (err) {
       console.error(err.message);
