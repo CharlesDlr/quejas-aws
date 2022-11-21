@@ -10,6 +10,7 @@ const sucursalSchema = require("../middleware/ValidationSchemas/sucursalSchema")
 const tipoquejaSchema = require("../middleware/ValidationSchemas/tipoquejaSchema");
 const ejecutivoSchema = require("../middleware/ValidationSchemas/ejecutivoSchema");
 const updateEjecutivoSchema = require("../middleware/ValidationSchemas/updateEjecutivoSchema");
+const auditorSchema = require("../middleware/ValidationSchemas/auditorSchema");
 //Flujo Admin
 //To see Quejas Externas
 router.get("/quejasexternas/:idpage", authorize, rolauth, async (req, res) => {
@@ -121,8 +122,7 @@ router.post("/cambio/:idqueja", authorize, rolauth, validSchema(cambiodeestatusS
       return res.json("Esta queja no existe...")
     } else if(quejas.rowCount > 0) {
       return res.json("Esta queja ya tiene un cambio de estatus...")
-    }
-    else {
+    } else {
       const {estado, responsable, comentario} = req.body;
       const cambio = await pool.query("Insert into cambio_estatus (estado, responsable, queja_id, comentario, usuario_id) values ($1, $2, $3, $4, $5) returning queja_id, estado, responsable, comentario, usuario_id", [estado, responsable, req.params.idqueja, comentario, req.user.id])
       res.json(cambio.rows);
@@ -353,6 +353,31 @@ router.post("/ejecutivos", authorize, rolauth, validSchema(ejecutivoSchema), asy
       const bcryptPassword = await bcrypt.hash(password, salt);
       const newEjecutivo = await pool.query("insert into ejecutivos (nombre, email, password, rol, sucursal_id, estatus, telefono) values ($1,$2,$3,$4,$5,$6,$7) returning *", [nombre, email, bcryptPassword, rol, sucursal, estatus, telefono]);
       res.json(newEjecutivo.rows);
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+})
+
+
+//To create Ejecutivo
+router.post("/auditores", authorize, rolauth, validSchema(auditorSchema), async (req, res) => {
+  try {
+    const {nombre, email, password, sucursal} = req.body;
+    const rol = 'Auditor';
+    const user = await pool.query("select * from usuarios where email = $1", [email]);
+    const suc = await pool.query("select * from sucursales where sucursal_id=$1", [sucursal])
+    if (user.rows.length > 0) {
+      return res.status(401).json("Correo electrónico ya registrado")
+    } else if (suc.rowCount === 0) {
+      return res.status(707).send("Esta sucursal no existe")
+    } else {
+      const saltRound = 10;
+      const salt = await bcrypt.genSalt(saltRound);
+      const bcryptPassword = await bcrypt.hash(password, salt);
+      const newAuditor = await pool.query("insert into auditores (nombre, email, password, rol, sucursal_id) values ($1,$2,$3,$4,$5) returning *", [nombre, email, bcryptPassword, rol, sucursal]);
+      res.json(newAuditor.rows);
     }
   } catch (err) {
     console.error(err.message);
