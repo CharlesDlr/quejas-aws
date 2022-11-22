@@ -4,9 +4,9 @@ const pool = require("../db");
 const rolauth = require("../middleware/rolauth");
 //Flujo Ejecutivo
 //To see only a Specific Ejecutivo Quejas
-router.get("/quejas", authorize, rolauth, async (req, res) => {
+router.get("/quejas/:idpage", authorize, rolauth, async (req, res) => {
     try {
-      const ejecutivos = await pool.query("select q.queja_id id, q.descr, q.fecha, q.estatus, q.nombre_usuario usuario, q.telefono from quejas q inner join ejecutivos e on q.ejecutivo_id=e.ejecutivo_id inner join usuarios u on e.nombre=u.nombre where u.usuario_id=$1 order by q.queja_id asc;", [req.user.id]);
+      const ejecutivos = await pool.query("select q.queja_id id, q.descr, q.fecha, q.estatus, q.nombre_usuario usuario, q.telefono from quejas q inner join ejecutivos e on q.ejecutivo_id=e.ejecutivo_id inner join usuarios u on e.nombre=u.nombre where u.usuario_id=$1 order by q.queja_id asc limit 10 offset $2;", [req.user.id, (10*(req.params.idpage-1))]);
       res.json(ejecutivos.rows);
     } catch (err) {
       console.error(err.message);
