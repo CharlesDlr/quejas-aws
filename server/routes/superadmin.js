@@ -237,8 +237,13 @@ router.delete("/sucursales/:idsucursal", authorize, rolauth, async (req, res) =>
     if (sucursal.rowCount === 0) {
       return res.json("Esta sucursal no existe...")
     } else {
-      await pool.query("delete from sucursales where sucursal_id=$1", [req.params.idsucursal])
-      res.json("La sucursal fue eliminada");
+      const ejecutivos = await pool.query("Select * from ejecutivos where sucursal_id=$1", [req.params.idsucursal])
+      if (ejecutivos.rowCount>0) {
+        return res.json("Esta sucursal ya tiene ejecutivos patrón, no puedes borrarla...")
+      } else {
+        await pool.query("delete from sucursales where sucursal_id=$1", [req.params.idsucursal])
+        res.json("La sucursal fue eliminada");
+      }
     }
   } catch (err) {
       console.error(err.message);
@@ -389,8 +394,13 @@ router.delete("/ejecutivos/:idejecutivo", authorize, async (req, res) => {
     if (ejecutivo.rowCount === 0) {
       return res.json("Este número de ejecutivo no existe...")
     } else {
-      await pool.query("delete from ejecutivos where ejecutivo_id=$1", [req.params.idejecutivo])
-      res.json("Este ejecutivo fue eliminado");
+      const ejecutivos = await pool.query("Select * from quejas where ejecutivo_id=$1", [req.params.idejecutivo])
+      if (ejecutivos.rowCount>0) {
+        return res.json("Este ejecutivo tiene quejas, no puedes borrarl...")
+      } else {
+        await pool.query("delete from ejecutivos where ejecutivo_id=$1", [req.params.idejecutivo])
+        res.json("Este ejecutivo fue eliminado");
+      }
     }
   } catch (err) {
       console.error(err.message);
