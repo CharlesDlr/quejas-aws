@@ -192,9 +192,9 @@ router.get("/sucursalessorted/:idnombre", authorize, rolauth, async (req, res) =
 })
 
 //To see Sucursales Statistics
-router.get("/sucursalesstats", authorize, rolauth, async (req, res) => {
+router.get("/sucursalesstats/:idestatus", authorize, rolauth, async (req, res) => {
   try {
-    const sucursales = await pool.query("select s.nombre, count(*) quejas from quejas q inner join sucursales s on s.sucursal_id=q.sucursal_id group by s.sucursal_id;");
+    const sucursales = await pool.query("SELECT S.NOMBRE Sucursal, COUNT(*) Total FROM QUEJAS Q INNER JOIN SUCURSALES S ON S.SUCURSAL_ID = Q.SUCURSAL_ID where q.estatus = $1 GROUP BY S.SUCURSAL_ID;", [req.params.idestatus]);
     res.json(sucursales.rows);
   } catch (err) {
     console.error(err.message);
@@ -331,10 +331,10 @@ router.get("/ejecutivos/:nombre", authorize, rolauth, async (req, res) => {
 })
 
 //To see Ejecutivos Statistics
-router.get("/ejecutivosstats/:idpage", authorize, rolauth, async (req, res) => {
+router.get("/ejecutivosstats/:idestatus", authorize, rolauth, async (req, res) => {
   try {
     const page = req.params.idpage
-    const ejecutivos = await pool.query("select e.nombre, count(*) as quejas from quejas q inner join sucursales s on s.sucursal_id=q.sucursal_id  inner join ejecutivos e on e.ejecutivo_id=q.ejecutivo_id group by e.nombre limit 10 offset $1;", [(10*(page-1))]);
+    const ejecutivos = await pool.query("select e.nombre, count(*) as Total from quejas q inner join sucursales s on s.sucursal_id=q.sucursal_id  inner join ejecutivos e on e.ejecutivo_id=q.ejecutivo_id where q.estatus=$1 group by e.nombre;", [req.params.idestatus]);
     res.json(ejecutivos.rows);
   } catch (err) {
     console.error(err.message);
