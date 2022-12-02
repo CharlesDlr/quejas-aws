@@ -6,7 +6,7 @@ module.exports = async (req, res, next) => {
     if (req.baseUrl === "/superadmin") {
         if (rol === "SuperAdmin") {
         } else return res.status(401).send("No tienes permiso, lo siento...");
-    } else if (req.baseUrl === "/cm") {
+    } else if (req.baseUrl === "/CM") {
         if (rol === "SuperAdmin" ||rol === "CM") {
         } else return res.status(401).send("No tienes permiso, lo siento...");
     } else if (req.baseUrl === "/ejecutivo") {
