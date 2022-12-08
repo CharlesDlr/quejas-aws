@@ -50,7 +50,7 @@ router.post("/login", validInfo, async (req, res) => {
         }
         //4.- DCreate the JWT
         const token = jwtGenerator(user.rows[0].usuario_id);
-        res.json({token});
+        res.json({token})
     } catch (err) {
         console.error(err.message);
         res.status(500).send("Server error"); 
