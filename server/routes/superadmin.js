@@ -12,7 +12,8 @@ const ejecutivoSchema = require("../middleware/ValidationSchemas/ejecutivoSchema
 const updateEjecutivoSchema = require("../middleware/ValidationSchemas/updateEjecutivoSchema");
 const auditorSchema = require("../middleware/ValidationSchemas/auditorSchema");
 const updateAuditorSchema = require("../middleware/ValidationSchemas/updateAuditorSchema");
-const jwt = require("jsonwebtoken");
+const cmSchema = require("../middleware/ValidationSchemas/cmSchema");
+const updateCmSchema = require("../middleware/ValidationSchemas/updateCmSchema");
 //Flujo Admin
 //To see Quejas Externas
 router.get("/quejasexternas", authorize, rolauth, async (req, res) => {
@@ -405,7 +406,7 @@ router.put("/ejecutivos/:ejecutivo", authorize, rolauth, validSchema(updateEjecu
 })
 
 //To delete a Ejecutivo
-router.delete("/ejecutivos/:ejecutivo", authorize, async (req, res) => {
+router.delete("/ejecutivos/:ejecutivo", authorize, rolauth, async (req, res) => {
   try {
     const ejecutivo = await pool.query("Select * from ejecutivos where ejecutivo_id=$1", [req.params.ejecutivo])
     if (ejecutivo.rowCount === 0) {
@@ -483,7 +484,7 @@ router.put("/auditores/:auditor", authorize, rolauth, validSchema(updateAuditorS
 })
 
 //To delete Auditor
-router.delete("/auditores/:auditor", authorize, async (req, res) => {
+router.delete("/auditores/:auditor", authorize, rolauth, async (req, res) => {
   try {
     const auditor = await pool.query("Select * from auditores where auditor_id=$1", [req.params.auditor])
     if (auditor.rowCount === 0) {
@@ -496,9 +497,68 @@ router.delete("/auditores/:auditor", authorize, async (req, res) => {
       console.error(err.message);
   }
 });
-//To actually logout from the system
-router.get("/logout", authorize, async (req,res) => {
-  res.json("Ha cerrado sesión con éxito")
 
+//To see Community managers
+router.get("/cm", authorize, rolauth, async (req, res) => {
+  try {
+    const page = req.params.page || 1
+    const limit= req.query.items || 10
+    const cm = await pool.query("SELECT nombre, rol from usuarios where rol='CM' limit $1 offset $2;", [limit, (limit*(page-1))]);
+    res.json(cm.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
 })
+
+//To create Community manager
+router.post("/cm", authorize, rolauth, validSchema(cmSchema), async (req, res) => {
+  try {
+    const {nombre, email, password} = req.body;
+    const rol = 'CM';
+    const user = await pool.query("select * from usuarios where email = $1", [email]);
+    if (user.rows.length > 0) {
+      return res.status(401).json("Correo electrónico ya registrado")
+    } else {
+      const saltRound = 10;
+      const salt = await bcrypt.genSalt(saltRound);
+      const bcryptPassword = await bcrypt.hash(password, salt);
+      const newCm = await pool.query("insert into usuarios (nombre, email, password, rol) values ($1,$2,$3,$4) returning *", [nombre, email, bcryptPassword, rol]);
+      res.json(newCm.rows);
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+})
+
+//To update Auditor
+router.put("/cm/:cm", authorize, rolauth, validSchema(updateCmSchema), async (req, res) => {
+  try {
+    const check = await pool.query("Select * from usuarios where usuario_id=$1", [req.params.cm])
+    if (check.rowCount === 0) {
+      return res.json("Este auditor no existe...")
+    } else {
+        await pool.query("Update usuarios set nombre=$1 where usuario_id=$2 returning *", [req.body.nombre, req.params.cm]);
+        res.json("Community manager Actualizado");
+    }
+} catch (err) {
+    console.error(err.message);
+}
+})
+
+//To delete Community manager
+router.delete("/cm/:cm", authorize, rolauth, async (req, res) => {
+  try {
+    const check = await pool.query("Select * from usuarios where usuario_id=$1", [req.params.cm])
+    if (check.rowCount === 0) {
+      return res.json("Este número de community manager no existe...")
+    } else {
+      await pool.query("delete from usuarios where usuario_id=$1", [req.params.cm])
+      res.json("Este CM fue eliminado");
+    }
+  } catch (err) {
+      console.error(err.message);
+  }
+});
 module.exports = router;

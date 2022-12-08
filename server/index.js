@@ -15,7 +15,7 @@ app.use("/superadmin", require("./routes/superadmin"))
 app.use("/auditor", require("./routes/auditor"))
 //Community Manager
 app.use("/CM", require("./routes/cm"))
-//Ejecutivo
+//Executive
 app.use("/ejecutivo", require("./routes/ejecutivo"))
 
 app.listen(5000, () => {

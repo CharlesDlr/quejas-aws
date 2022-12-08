@@ -57,4 +57,9 @@ router.post("/login", validInfo, async (req, res) => {
     }
 });
 
+//To actually logout from the system
+router.get("/logout", async (req,res) => {
+    res.json("Ha cerrado sesión con éxito")
+  
+})
 module.exports = router;
