@@ -6,10 +6,16 @@ const rolauth = require("../middleware/rolauth");
 //To see only a Specific Ejecutivo Quejas
 router.get("/quejas", authorize, rolauth, async (req, res) => {
     try {
-      const page = req.query.page || 1
-      const limit = req.query.items || 10
-      const ejecutivos = await pool.query("select q.queja_id id, q.descr, q.fecha, q.estatus, q.nombre_usuario usuario, q.telefono from quejas q inner join ejecutivos e on q.ejecutivo_id=e.ejecutivo_id inner join usuarios u on e.nombre=u.nombre where u.usuario_id=$1 order by q.queja_id asc limit $2 offset $3;", [req.user.id, limit, (limit*(page-1))]);
-      res.json(ejecutivos.rows);
+      const prueba = await pool.query("select rol from usuarios where usuario_id=$1", [req.user.id])
+      const rol = prueba.rows[0].rol
+      if (rol === "SuperAdmin") {
+        res.json("Usted es SuperAdmin, no ejecutivo, especifique el ejecutivo...")
+      } else {
+        const page = req.query.page || 1
+        const limit = req.query.items || 10
+        const ejecutivos = await pool.query("select q.queja_id id, q.descr, q.fecha, q.estatus, q.nombre_usuario usuario, q.telefono from quejas q inner join ejecutivos e on q.ejecutivo_id=e.ejecutivo_id inner join usuarios u on e.nombre=u.nombre where u.usuario_id=$1 order by q.queja_id asc limit $2 offset $3;", [req.user.id, limit, (limit*(page-1))]);
+        res.json(ejecutivos.rows);
+      }     
     } catch (err) {
       console.error(err.message);
       res.status(500).send("Server error");
@@ -44,14 +50,20 @@ router.get("/quejas", authorize, rolauth, async (req, res) => {
   //To update estatus de una queja
   router.put("/cambio/:queja", authorize, rolauth, async (req, res) => {
     try {
-      const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.user.id])
-      const verif = await pool.query("select * from quejas where queja_id=$1 and ejecutivo_id=$2",[req.params.queja, ejecutivo.rows[0].ejecutivo_id])
-      if(verif.rowCount === 0) {
-        res.json("Esta queja no te pertenece patrón, ojo ahí...")
+      const prueba = await pool.query("select rol from usuarios where usuario_id=$1", [req.user.id])
+      const rol = prueba.rows[0].rol
+      if (rol === "SuperAdmin") {
+        res.json("Usted es SuperAdmin, no ejecutivo, especifique el ejecutivo...")
       } else {
-        const {estatus} = req.body;
-        const nuevoestatus = await pool.query("Update quejas set estatus=$1 where queja_id=$2 returning queja_id, estatus", [estatus, req.params.queja]);
-        res.json(nuevoestatus.rows[0]);
+        const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.user.id])
+        const verif = await pool.query("select * from quejas where queja_id=$1 and ejecutivo_id=$2",[req.params.queja, ejecutivo.rows[0].ejecutivo_id])
+        if(verif.rowCount === 0) {
+          res.json("Esta queja no te pertenece patrón, ojo ahí...")
+        } else {
+          const {estatus} = req.body;
+          const nuevoestatus = await pool.query("Update quejas set estatus=$1 where queja_id=$2 returning queja_id, estatus", [estatus, req.params.queja]);
+          res.json(nuevoestatus.rows[0]);
+        }
       }
   } catch (err) {
       console.error(err.message);
@@ -61,14 +73,20 @@ router.get("/quejas", authorize, rolauth, async (req, res) => {
   //To add comentarios to a queja
   router.post("/cambio/:queja", authorize, rolauth, async (req, res) => {
     try {
-      const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.user.id])
-      const verif = await pool.query("select * from quejas where queja_id=$1 and ejecutivo_id=$2",[req.params.queja, ejecutivo.rows[0].ejecutivo_id])
-      if(verif.rowCount === 0) {
-        res.json("Esta queja no te pertenece patrón, ojo ahí...")
+      const prueba = await pool.query("select rol from usuarios where usuario_id=$1", [req.user.id])
+      const rol = prueba.rows[0].rol
+      if (rol === "SuperAdmin") {
+        res.json("Usted es SuperAdmin, no ejecutivo, especifique el ejecutivo...")
       } else {
-        const {comentario} = req.body;
-        await pool.query("Insert into cambio_estatus (comentario, queja_id, usuario_id) values ($1, $2, $3) returning *", [comentario, req.params.queja, req.user.id]);
-        res.json("Comentario Insertado");
+        const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.user.id])
+        const verif = await pool.query("select * from quejas where queja_id=$1 and ejecutivo_id=$2",[req.params.queja, ejecutivo.rows[0].ejecutivo_id])
+        if(verif.rowCount === 0) {
+          res.json("Esta queja no te pertenece patrón, ojo ahí...")
+        } else {
+          const {comentario} = req.body;
+          await pool.query("Insert into cambio_estatus (comentario, queja_id, usuario_id) values ($1, $2, $3) returning *", [comentario, req.params.queja, req.user.id]);
+          res.json("Comentario Insertado");
+        }
       }
   } catch (err) {
       console.error(err.message);
