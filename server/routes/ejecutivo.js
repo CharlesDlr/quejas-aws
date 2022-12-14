@@ -3,6 +3,11 @@ const authorize = require("../middleware/authorization");
 const pool = require("../db");
 const rolauth = require("../middleware/rolauth");
 //Flujo Ejecutivo
+function pages (contador, limit) {
+  if (contador.rows[0].count%limit != 0) {
+      return totPage = Math.floor((contador.rows[0].count/limit)+1)
+    } else  return totPage = contador.rows[0].count/limit
+}
 //To see only a Specific Ejecutivo Quejas
 router.get("/quejas", authorize, rolauth, async (req, res) => {
     try {
@@ -13,8 +18,13 @@ router.get("/quejas", authorize, rolauth, async (req, res) => {
       } else {
         const page = req.query.page || 1
         const limit = req.query.items || 10
-        const ejecutivos = await pool.query("select q.queja_id id, q.descr, q.fecha, q.estatus, q.nombre_usuario usuario, q.telefono from quejas q inner join ejecutivos e on q.ejecutivo_id=e.ejecutivo_id inner join usuarios u on e.nombre=u.nombre where u.usuario_id=$1 order by q.queja_id asc limit $2 offset $3;", [req.user.id, limit, (limit*(page-1))]);
-        res.json(ejecutivos.rows);
+        const by = req.query.by || 'Id'
+        const dir = req.query.dir || 'asc'
+        const status = req.query.status || 1
+        const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.user.id])
+        const contador = await pool.query("Select count(queja_id) from quejas where ejecutivo_id=$1 and estatus=$2", [status, ejecutivo.rows[0].ejecutivo_id])
+        const quejas = await pool.query("select q.queja_id id, q.descr, q.fecha, q.estatus, q.nombre_usuario usuario, q.telefono from quejas q inner join ejecutivos e on q.ejecutivo_id=e.ejecutivo_id where q.ejecutivo_id=$1 and q.estatus=$2 order by "+by+ " " +dir+" limit $3 offset $4;", [ejecutivo.rows[0].ejecutivo_id, status, limit, (limit*(page-1))]);
+        res.json({Complaints: quejas.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, limit)});
       }     
     } catch (err) {
       console.error(err.message);
