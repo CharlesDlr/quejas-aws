@@ -23,14 +23,36 @@ function pages (contador, limit) {
 //To see Quejas Externas
 router.get("/quejasexternas", authorize, rolauth, async (req, res) => {
   try {
-    const page = req.query.page || 1
-    const limit = req.query.items || 10
-    const by = req.query.by || 'Id'
-    const dir = req.query.dir || 'asc'
-    const status = req.query.status || 1
+    const verif = ["Id", "Sucursal", "Ejecutivo", "TipoQueja", "Descripción", "Fecha", "Estatus", "Origen", "Nombreusuario", "Teléfono"]
+    var {page, items, by, dir, status} = req.query
+    var byFlag=0
+    verif.forEach(function(entry) {
+      if (by!=entry) {
+        byFlag++
+      }
+    })
+    if (byFlag===verif.length) {
+      by="Id"
+    }
+    if (isNaN(status) || status!=0){
+      status=1
+    }
     const contador = await pool.query("select count(queja_id) from quejas where estatus=$1", [status])
-    const quejas = await pool.query("select queja_id Id, s.nombre Sucursal, e.nombre Ejecutivo, tq.nombre TipoQueja, q.descr Descripción, q.fecha Fecha, q.estatus Estatus, o.nombre Origen, q.nombre_usuario NombreUsuario, q.telefono Teléfono from quejas q inner join ejecutivos e on e.ejecutivo_id=q.ejecutivo_id inner join sucursales s on e.sucursal_id=s.sucursal_id inner join origen o on q.origen_id=o.origen_id inner join tipo_queja tq on tq.tipo_queja_id=q.tipo_queja_id where q.estatus=$1 order by "+by+ " " +dir+" limit $2 offset $3;", [status, limit, (limit*(page-1))]);
-    res.json({Complaints: quejas.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, limit)});
+    if (isNaN(page)) {
+      page=1
+    } else if (page>pages(contador,items)) {
+      page=pages(contador,items)
+    }
+    if (isNaN(items)) {
+      items=10
+    } else if (items>contador) {
+      items=contador
+    }
+    if (dir!="desc"){
+      dir="asc"
+    }
+    const quejas = await pool.query("select queja_id Id, s.nombre Sucursal, e.nombre Ejecutivo, tq.nombre TipoQueja, q.descr Descripción, q.fecha Fecha, q.estatus Estatus, o.nombre Origen, q.nombre_usuario NombreUsuario, q.telefono Teléfono from quejas q inner join ejecutivos e on e.ejecutivo_id=q.ejecutivo_id inner join sucursales s on e.sucursal_id=s.sucursal_id inner join origen o on q.origen_id=o.origen_id inner join tipo_queja tq on tq.tipo_queja_id=q.tipo_queja_id where q.estatus=$1 order by "+by+ " " +dir+" limit $2 offset $3;", [status, items, (items*(page-1))]);
+    res.json({Complaints: quejas.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, items)});
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -41,21 +63,21 @@ router.get("/quejasexternas", authorize, rolauth, async (req, res) => {
 router.post("/quejasexternas", authorize, rolauth, validSchema(quejasSchema), async (req, res) => {
   try {
     const {ejecutivo, sucursal, tipoqueja, descr, estatus, origen, nombreusuario, telefono} = req.body;
-      const check = await pool.query ("Select * from ejecutivos where ejecutivo_id=$1", [ejecutivo])
-      const verifyTipoQueja = await pool.query("Select * from tipo_queja where tipo_queja_id=$1", [tipoqueja])
-      const verifyOrigen= await pool.query("Select * from origen where origen_id=$1", [origen])
-      if (verifyOrigen.rowCount === 0) {
-        res.status(707).send("Este origen no existe")
-      } else if (verifyTipoQueja.rowCount === 0) {
-        res.status(707).send("Este tipo de queja no existe")
-      } else if (check.rowCount === 0) {
-        res.status(707).send("Este ejecutivo no existe")
-      } else if (check.rows[0].sucursal_id != sucursal) {
-        res.status(707).send("Este ejecutivo no pertenece a esta sucursal")
-      } else {
-        const newQueja = await pool.query("insert into quejas (ejecutivo_id, sucursal_id, tipo_queja_id, descr, estatus, origen_id, nombre_usuario, telefono) values ($1,$2,$3,$4,$5,$6,$7, $8) returning *", [ejecutivo, sucursal, tipoqueja, descr, estatus, origen, nombreusuario, telefono]);
-        res.json(newQueja.rows);
-      }
+    const check = await pool.query ("Select * from ejecutivos where ejecutivo_id=$1", [ejecutivo])
+    const verifyTipoQueja = await pool.query("Select * from tipo_queja where tipo_queja_id=$1", [tipoqueja])
+    const verifyOrigen= await pool.query("Select * from origen where origen_id=$1", [origen])
+    if (verifyOrigen.rowCount === 0) {
+      res.status(707).send("Este origen no existe")
+    } else if (verifyTipoQueja.rowCount === 0) {
+      res.status(707).send("Este tipo de queja no existe")
+    } else if (check.rowCount === 0) {
+      res.status(707).send("Este ejecutivo no existe")
+    } else if (check.rows[0].sucursal_id != sucursal) {
+      res.status(707).send("Este ejecutivo no pertenece a esta sucursal")
+    } else {
+      const newQueja = await pool.query("insert into quejas (ejecutivo_id, sucursal_id, tipo_queja_id, descr, estatus, origen_id, nombre_usuario, telefono) values ($1,$2,$3,$4,$5,$6,$7, $8) returning *", [ejecutivo, sucursal, tipoqueja, descr, estatus, origen, nombreusuario, telefono]);
+      res.json(newQueja.rows);
+    }
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -180,14 +202,36 @@ router.delete("/cambio/:queja", authorize, rolauth, async (req, res) => {
 //To see Sucursales
 router.get("/sucursales", authorize, rolauth, async (req, res) => {
   try {
-    const page = req.query.page || 1
-    const limit = req.query.items || 10
-    const status= req.query.status || 1
-    const by = req.query.by || 'sucursal_id'
-    const dir = req.query.dir || 'asc'
+    var {page, items, by, dir, status} = req.query
+    const verif = ["sucursal_id", "Estatus", "Nombre"]
+    var byFlag=0
+    verif.forEach(function(entry) {
+      if (by!=entry) {
+        byFlag++
+      }
+    })
+    if (byFlag===verif.length) {
+      by="sucursal_id"
+    }
+    if (isNaN(status) || status!=0){
+      status=1
+    }
     const contador = await pool.query("select count(sucursal_id) from sucursales where estatus=$1", [status])
-    const sucursales = await pool.query("select * from sucursales where estatus =$1 order by "+by+ " " +dir+" limit $2 offset $3;", [status, limit, (limit*(page-1))]);
-    res.json({Offices: sucursales.rows, Conteo: contador.rows[0].count,  Helper: "Página " + page + " de " + pages(contador, limit)});
+    if (isNaN(page)) {
+      page=1
+    } else if (page>pages(contador,items)) {
+      page=pages(contador,items)
+    }
+    if (isNaN(items)) {
+      items=10
+    } else if (items>contador) {
+      items=contador
+    }
+    if (dir!="desc"){
+      dir="asc"
+    }
+    const sucursales = await pool.query("select * from sucursales where estatus =$1 order by "+by+ " " +dir+" limit $2 offset $3;", [status, items, (items*(page-1))]);
+    res.json({Offices: sucursales.rows, Conteo: contador.rows[0].count,  Helper: "Página " + page + " de " + pages(contador, items)});
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -211,14 +255,36 @@ router.get("/sucursalessorted", authorize, rolauth, async (req, res) => {
 //To see Sucursales Statistics
 router.get("/sucursalesstats", authorize, rolauth, async (req, res) => {
   try {
-    const page= req.query.page || 1
-    const limit= req.query.items || 10
-    const status= req.query.status || 1
-    const by = req.query.by || 'Sucursal'
-    const dir = req.query.dir || 'asc'
+    var {page, items, by, dir, status} = req.query
+    const verif = ["Sucursal", "Total"]
+    var byFlag=0
+    verif.forEach(function(entry) {
+      if (by!=entry) {
+        byFlag++
+      }
+    })
+    if (byFlag===verif.length) {
+      by="sucursal"
+    }
+    if (isNaN(status) || status!=0){
+      status=1
+    }
     const contador = await pool.query("select count(sucursal_id) from sucursales where estatus=$1", [status])
-    const sucursales = await pool.query("SELECT S.NOMBRE Sucursal, COUNT(*) Total FROM QUEJAS Q INNER JOIN SUCURSALES S ON S.SUCURSAL_ID = Q.SUCURSAL_ID where q.estatus = $1 GROUP BY S.SUCURSAL_ID order by "+by+ " " +dir+" limit $2 offset $3;", [status, limit, (limit*(page-1))]);
-    res.json({Offices: sucursales.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, limit)});
+    if (isNaN(page)) {
+      page=1
+    } else if (page>pages(contador,items)) {
+      page=pages(contador,items)
+    }
+    if (isNaN(items)) {
+      items=10
+    } else if (items>contador) {
+      items=contador
+    }
+    if (dir!="desc"){
+      dir="asc"
+    }
+    const sucursales = await pool.query("SELECT S.NOMBRE Sucursal, COUNT(*) Total FROM QUEJAS Q INNER JOIN SUCURSALES S ON S.SUCURSAL_ID = Q.SUCURSAL_ID where q.estatus = $1 GROUP BY S.SUCURSAL_ID order by "+by+ " " +dir+" limit $2 offset $3;", [status, items, (items*(page-1))]);
+    res.json({Offices: sucursales.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, items)});
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -280,14 +346,36 @@ router.delete("/sucursales/:sucursal", authorize, rolauth, async (req, res) => {
 //To see Tipos de Quejas
 router.get("/tiposquejas", authorize, rolauth, async (req, res) => {
   try {
-    const page= req.query.page || 1
-    const limit= req.query.items || 10
-    const status= req.query.status || 1
-    const by = req.query.by || 'tipo_queja_id'
-    const dir = req.query.dir || 'asc'
+    const verif = ["tipo_queja_id", "nombre", "abreviatura", "estatus"]
+    var {page, items, by, dir, status} = req.query
+    var byFlag=0
+    verif.forEach(function(entry) {
+      if (by!=entry) {
+        byFlag++
+      }
+    })
+    if (byFlag===verif.length) {
+      by="tipo_queja_id"
+    }
+    if (isNaN(status) || status!=0){
+      status=1
+    }
     const contador = await pool.query("select count(tipo_queja_id) from tipo_queja where estatus=$1", [status])
-    const tiposquejas = await pool.query("select * from tipo_queja where estatus=$1 order by "+by+ " " +dir+" limit $2 offset $3;", [status, limit, (limit*(page-1))]);
-    res.json({TypesofComplaints: tiposquejas.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, limit)});
+    if (isNaN(page)) {
+      page=1
+    } else if (page>pages(contador,items)) {
+      page=pages(contador,items)
+    }
+    if (isNaN(items)) {
+      items=10
+    } else if (items>contador) {
+      items=contador
+    }
+    if (dir!="desc"){
+      dir="asc"
+    }
+    const tiposquejas = await pool.query("select * from tipo_queja where estatus=$1 order by "+by+ " " +dir+" limit $2 offset $3;", [status, items, (items*(page-1))]);
+    res.json({TypesofComplaints: tiposquejas.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, items)});
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -344,14 +432,36 @@ router.delete("/tiposquejas/:tipoqueja", authorize, rolauth, async (req, res) =>
 //To see Ejecutivos
 router.get("/ejecutivos", authorize, rolauth, async (req, res) => {
   try {
-    const page= req.query.page || 1
-    const limit= req.query.items || 10
-    const status= req.query.status || 1
-    const by = req.query.by || 'usuario_id'
-    const dir = req.query.dir || 'asc'
+    const verif = ["Sucursal", "Ejecutivo", "Estatus", "Teléfono"]
+    var {page, items, by, dir, status} = req.query
+    var byFlag=0
+    verif.forEach(function(entry) {
+      if (by!=entry) {
+        byFlag++
+      }
+    })
+    if (byFlag===verif.length) {
+      by="usuario_id"
+    }
+    if (isNaN(status) || status!=0){
+      status=1
+    }
     const contador = await pool.query("select count(*) from ejecutivos where estatus=$1", [status])
-    const ejecutivos = await pool.query("select e.nombre ejecutivo, s.nombre sucursal, e.telefono, e.estatus from sucursales s inner join ejecutivos e on s.sucursal_id=e.sucursal_id where e.estatus=$1 order by "+by+ " " +dir+" limit $2 offset $3;", [status, limit, (limit*(page-1))]);
-    res.json({Executives: ejecutivos.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, limit)});
+    if (isNaN(page)) {
+      page=1
+    } else if (page>pages(contador,items)) {
+      page=pages(contador,items)
+    }
+    if (isNaN(items)) {
+      items=10
+    } else if (items>contador) {
+      items=contador
+    }
+    if (dir!="desc"){
+      dir="asc"
+    }
+    const ejecutivos = await pool.query("select e.nombre ejecutivo, s.nombre sucursal, e.telefono, e.estatus from sucursales s inner join ejecutivos e on s.sucursal_id=e.sucursal_id where e.estatus=$1 order by "+by+ " " +dir+" limit $2 offset $3;", [status, items, (items*(page-1))]);
+    res.json({Executives: ejecutivos.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, items)});
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -363,7 +473,9 @@ router.get("/ejecutivossorted", authorize, rolauth, async (req, res) => {
   try {
     const name = req.query.name || ''
     const ejecutivos = await pool.query("select e.nombre ejecutivo, s.nombre sucursal, e.telefono, e.estatus from sucursales s inner join ejecutivos e on s.sucursal_id=e.sucursal_id WHERE UPPER(e.NOMBRE) like UPPER(UNACCENT('%"+ name +"%'));");
-    res.json({Executives: ejecutivos.rows, Conteo: ejecutivos.rowCount});
+    if (ejecutivos.rowCount>0) {
+      res.json({Executives: ejecutivos.rows, Conteo: ejecutivos.rowCount});
+    } else res.json("No hay ejecutivos que coincidan con la búsqueda")
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -373,16 +485,38 @@ router.get("/ejecutivossorted", authorize, rolauth, async (req, res) => {
 //To see Ejecutivos Statistics
 router.get("/ejecutivosstats", authorize, rolauth, async (req, res) => {
   try {
-    const page = req.query.page || 1
-    const limit= req.query.items || 10
-    const status= req.query.status || 1
-    const by = req.query.by || 'e.nombre'
-    const dir = req.query.dir || 'asc'
+    const verif = ["nombre", "total"]
+      var {page, items, by, dir, status} = req.query
+      var byFlag=0
+      verif.forEach(function(entry) {
+        if (by!=entry) {
+          byFlag++
+        }
+      })
+      if (byFlag===verif.length) {
+        by="e.nombre"
+      }
+      if (isNaN(status) || status!=0){
+        status=1
+      }
     const contador= await pool.query("Select count(distinct(e.nombre)) as Total from ejecutivos e inner join quejas q on q.ejecutivo_id=e.ejecutivo_id where q.estatus=$1", [status])
-    if (contador.rows[0].total%limit != 0) {
-      totPage = Math.floor((contador.rows[0].total/limit)+1)
-    } else  totPage = contador.rows[0].total/limit
-    const ejecutivos = await pool.query("select e.nombre, count(*) as Total from quejas q inner join sucursales s on s.sucursal_id=q.sucursal_id  inner join ejecutivos e on e.ejecutivo_id=q.ejecutivo_id where q.estatus=$1 group by e.nombre order by "+by+ " " +dir+" limit $2 offset $3;", [status, limit,(limit*(page-1))]);
+    if (contador.rows[0].total%items != 0) {
+      totPage = Math.floor((contador.rows[0].total/items)+1)
+    } else  totPage = contador.rows[0].total/items
+    if (isNaN(page)) {
+      page=1
+    } else if (page>totPage) {
+      page=totPage
+    }
+    if (isNaN(items)) {
+      items=10
+    } else if (items>contador) {
+      items=contador
+    }
+    if (dir!="desc"){
+      dir="asc"
+    }
+    const ejecutivos = await pool.query("select e.nombre, count(*) as Total from quejas q inner join sucursales s on s.sucursal_id=q.sucursal_id  inner join ejecutivos e on e.ejecutivo_id=q.ejecutivo_id where q.estatus=$1 group by e.nombre order by "+by+ " " +dir+" limit $2 offset $3;", [status, items,(items*(page-1))]);
     res.json({Executives: ejecutivos.rows, Conteo: contador.rows[0].total, Helper: "Página " + page + " de " + totPage});
   } catch (err) {
     console.error(err.message);
@@ -458,13 +592,36 @@ router.delete("/ejecutivos/:ejecutivo", authorize, rolauth, async (req, res) => 
 //To see Auditores
 router.get("/auditores", authorize, rolauth, async (req, res) => {
   try {
-    const page = req.query.page || 1
-    const limit= req.query.items || 10
-    const by = req.query.by || 'nombre'
-    const dir = req.query.dir || 'asc'
+    const verif = ["Sucursal", "Nombre"]
+    var {page, items, by, dir, status} = req.query
+    var byFlag=0
+    verif.forEach(function(entry) {
+      if (by!=entry) {
+        byFlag++
+      }
+    })
+    if (byFlag===verif.length) {
+      by="nombre"
+    }
+    if (isNaN(status) || status!=0){
+      status=1
+    }
     const contador= await pool.query("Select count(*) from auditores")
-    const auditores = await pool.query("SELECT au.NOMBRE,S.NOMBRE SUCURSAL FROM SUCURSALES S INNER JOIN auditores  au ON au.sucursal_id = S.sucursal_id order by "+by+ " " +dir+" limit $1 offset $2;", [limit, (limit*(page-1))]);
-    res.json({Auditors: auditores.rows, Conteo: contador.rows[0].count,  Helper: "Página " + page + " de " + pages(contador, limit)});
+    if (isNaN(page)) {
+      page=1
+    } else if (page>pages(contador,items)) {
+      page=pages(contador,items)
+    }
+    if (isNaN(items)) {
+      items=10
+    } else if (items>contador) {
+      items=contador
+    }
+    if (dir!="desc"){
+      dir="asc"
+    }
+    const auditores = await pool.query("SELECT au.NOMBRE,S.NOMBRE SUCURSAL FROM SUCURSALES S INNER JOIN auditores  au ON au.sucursal_id = S.sucursal_id order by "+by+ " " +dir+" limit $1 offset $2;", [items, (items*(page-1))]);
+    res.json({Auditors: auditores.rows, Conteo: contador.rows[0].count,  Helper: "Página " + page + " de " + pages(contador, items)});
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -534,12 +691,23 @@ router.delete("/auditores/:auditor", authorize, rolauth, async (req, res) => {
 //To see Community managers
 router.get("/cm", authorize, rolauth, async (req, res) => {
   try {
-    const page = req.query.page || 1
-    const limit= req.query.items || 10
-    const dir = req.query.dir || 'asc'
+    var {page, items, dir} = req.query
     const contador= await pool.query("Select count(*) from usuarios where rol='CM'")
-    const cm = await pool.query("SELECT nombre, rol from usuarios where rol='CM' order by nombre " +dir+" limit $1 offset $2;", [limit, (limit*(page-1))]);
-    res.json({CommunityManagers: cm.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, limit)});
+    if (isNaN(page)) {
+      page=1
+    } else if (page>pages(contador,items)) {
+      page=pages(contador,items)
+    }
+    if (isNaN(items)) {
+      items=10
+    } else if (items>contador) {
+      items=contador
+    }
+    if (dir!="desc"){
+      dir="asc"
+    }
+    const cm = await pool.query("SELECT nombre from usuarios where rol='CM' order by nombre " +dir+" limit $1 offset $2;", [items, (items*(page-1))]);
+    res.json({CommunityManagers: cm.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, items)});
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");

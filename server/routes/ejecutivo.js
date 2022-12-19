@@ -16,15 +16,37 @@ router.get("/quejas", authorize, rolauth, async (req, res) => {
       if (rol === "SuperAdmin") {
         res.json("Usted es SuperAdmin, no ejecutivo, especifique el ejecutivo...")
       } else {
-        const page = req.query.page || 1
-        const limit = req.query.items || 10
-        const by = req.query.by || 'Id'
-        const dir = req.query.dir || 'asc'
-        const status = req.query.status || 1
+        const verif = ["Id", "Descr", "Fecha", "Estatus", "Nombreusuario", "Teléfono"]
+        var {page, items, by, dir, status} = req.query
+        var byFlag=0
+        verif.forEach(function(entry) {
+          if (by!=entry) {
+            byFlag++
+          }
+        })
+        if (byFlag===verif.length) {
+          by="Id"
+        }
+        if (isNaN(status) || status!=0){
+          status=1
+        }
         const ejecutivo =  await pool.query("Select ejecutivo_id from ejecutivos where usuario_id=$1", [req.user.id])
         const contador = await pool.query("Select count(queja_id) from quejas where ejecutivo_id=$1 and estatus=$2", [status, ejecutivo.rows[0].ejecutivo_id])
-        const quejas = await pool.query("select q.queja_id id, q.descr, q.fecha, q.estatus, q.nombre_usuario usuario, q.telefono from quejas q inner join ejecutivos e on q.ejecutivo_id=e.ejecutivo_id where q.ejecutivo_id=$1 and q.estatus=$2 order by "+by+ " " +dir+" limit $3 offset $4;", [ejecutivo.rows[0].ejecutivo_id, status, limit, (limit*(page-1))]);
-        res.json({Complaints: quejas.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, limit)});
+        if (isNaN(page)) {
+          page=1
+        } else if (page>pages(contador,items)) {
+          page=pages(contador,items)
+        }
+        if (isNaN(items)) {
+          items=10
+        } else if (items>contador) {
+          items=contador
+        }
+        if (dir!="desc"){
+          dir="asc"
+        }
+        const quejas = await pool.query("select q.queja_id id, q.descr, q.fecha, q.estatus, q.nombre_usuario usuario, q.telefono from quejas q inner join ejecutivos e on q.ejecutivo_id=e.ejecutivo_id where q.ejecutivo_id=$1 and q.estatus=$2 order by "+by+ " " +dir+" limit $3 offset $4;", [ejecutivo.rows[0].ejecutivo_id, status, items, (items*(page-1))]);
+        res.json({Complaints: quejas.rows, Conteo: contador.rows[0].count, Helper: "Página " + page + " de " + pages(contador, items)});
       }     
     } catch (err) {
       console.error(err.message);
